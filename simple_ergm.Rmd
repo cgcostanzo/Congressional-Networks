@@ -1,0 +1,70 @@
+---
+title: "Simple ERGM"
+author: "Charles Costanzo"
+date: "2023-10-05"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("/Users/charlescostanzo/College/Au 2023/Politsc 4998/URS Application/simple_ergm_output/")
+```
+
+```{r, message = FALSE, results = "hide"}
+# install "intergraph" package (only need to do once, so comment out)
+# install.packages("intergraph")
+# install "Rglpk" package (only need to do once, so comment out)
+# install.packages("Rglpk")
+
+# create a vector containing names of packages we want to load
+packages <- c("intergraph","igraph","statnet","ergm", "Rglpk")
+
+# load in packages
+lapply(packages, library, character.only = TRUE)
+```
+
+```{r}
+# read in igraph object "g"
+path <- "/Users/charlescostanzo/College/Au 2023/Politsc 4998/Data/graphml_zscore_self_1_1_5_85_164/114.graphml"
+g <- read_graph(path, format = "graphml")
+
+# print vertex attribute names
+names(vertex_attr(g))
+
+# set born attribute to numeric type
+V(g)$born <- as.numeric(V(g)$born)
+V(g)$died <- ifelse(V(g)$died == "NaN", NA, as.numeric(V(g)$died))
+
+# convert igraph object "g" to network named "net"
+net <- asNetwork(g)
+
+# extract edgelist from "g"
+el.g <- get.edgelist(g)
+
+# extract edgelist from "net"
+el.net <- as.matrix(net, "edgelist")
+
+# check if edge lists are identical
+identical(as.numeric(el.g), as.numeric(el.net))
+```
+
+\newpage
+
+```{r}
+# set random seed for reproducibility
+set.seed(1022)
+
+# run very simple ergm
+model <- ergm(net ~ edges + ostar(2:3) +
+             #   gwesp(cutoff = 435) + 
+                nodemix("party_code"),
+              control = control.ergm(MCMC.samplesize=5000,
+                                     MCMC.burnin=5000,
+                                     MCMLE.maxit=10)
+)
+
+# display model summary
+summary(model)
+```
+
+
