@@ -1,0 +1,216 @@
+---
+title: "Generate Network Plots"
+author: "Charles Costanzo"
+date: "2023-10-05"
+geometry: margin=1.5cm
+header-includes:
+- \usepackage{pdflscape}
+- \newcommand{\blandscape}{\begin{landscape}}
+- \newcommand{\elandscape}{\end{landscape}}
+- \pagenumbering{gobble}
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# set working directory
+setwd("/Users/charlescostanzo/College/Au 2023/Politsc 4998/URS Application/")
+```
+
+
+```{r, message = FALSE}
+# load libraries
+library(igraph) # for graphing
+library(dplyr) # for %>% operator and mutate(), case_when() function
+library(stringr) # for str_to_title() function
+```
+
+Note: need results = "asis" to print a new line after each plot
+```{r, results = "asis"}
+# create a vector containing all congress numbers
+congress_number <- as.character(c(97:114))
+
+# loop through all .graphml files and create a plot for each
+for(i in seq_along(congress_number)){
+  
+  # read in the .graphml file for congress i (starting at 97)
+  g <- read_graph(paste0("/Users/charlescostanzo/College/Au 2023/Politsc 4998/Data/graphml_zscore_self_1_1_5_85_164/",congress_number[i], ".graphml"), 
+                  format = "graphml")
+  
+  # check vertex attribute names
+  vertex_attr_names(g)
+  # see https://voteview.com/articles/data_help_members for more info
+  
+  # create a data frame "vertex_labels" containing bioname, state_abbrev, 
+  # and district_code
+  vertex_labels <- data.frame(vertex_attr(g)$bioname, 
+                              vertex_attr(g)$state_abbrev, 
+                              vertex_attr(g)$district_code)
+  
+  # rename "vertex_labels" columns to be more clear
+  names(vertex_labels) <- c("Name", "District_State", "District_Number")
+  
+  # create a data frame "last_first" with two columns for last and first names
+  last_first <- do.call("rbind", 
+                        regmatches(vertex_labels$Name, 
+                                   regexpr(", ", vertex_labels$Name),
+                                   invert = TRUE) )
+  last_first <- data.frame(last_first)
+  
+  # rename "last_first" columns to be more appropriate
+  names(last_first) <- c("Last_Name", "First_Name")
+  
+  # add the "last_first" columns to "vertex_labels"
+  vertex_labels <- cbind(vertex_labels, last_first)
+  
+  # capitalize last names
+  vertex_labels$Last_Name <- str_to_title(vertex_labels$Last_Name)
+  
+  # capitalize third character in "Mc" last names, e.g. Mccarthy --> McCarthy
+  # capitalize other names on a case-by-case basis
+  
+  vertex_labels <- vertex_labels %>%
+    mutate(Last_Name = case_when(
+      grepl("Mc", vertex_labels$Last_Name) == TRUE ~ paste0(
+        substr(vertex_labels$Last_Name,1, 2
+               ), 
+        toupper(substr(vertex_labels$Last_Name, 3, 3)), 
+        substr(vertex_labels$Last_Name, 4, 
+               nchar(vertex_labels$Last_Name))),
+      Last_Name == "Desjarlais" ~ "DesJarlais",
+      Last_Name == "Delbene" ~ "DelBene",
+      Last_Name == "Delauro" ~ "DeLauro",
+      Last_Name == "Desantis" ~ "DeSantis",
+      Last_Name == "Degette" ~ "DeGette",
+      Last_Name == "Defazio" ~ "DeFazio",
+      Last_Name == "Lamalfa" ~ "LaMalfa",
+      TRUE ~ Last_Name
+    ))
+  
+  # create a column 'vertex_label' that contains properly formatted vertex labels
+  # for each member of Congress node
+  vertex_labels$vertex_label <- paste0(vertex_labels$District_State, 
+                                       "-",
+                                       round(as.numeric(
+                                         vertex_labels$District_Number),
+                                             0))
+  
+  # create a jpeg file for figure 1
+  jpeg(paste0("/Users/charlescostanzo/College/Au 2023/Politsc 4998/URS Application/network plots/",
+       congress_number[i],"_congress.jpeg"), 
+       width = 25, 
+       height = 15, 
+       units = 'in', 
+       res = 300)
+  
+    # use a multidimensional scaling layout, which is good for large, dense networks
+  l <- layout_with_mds(g)
+  
+  # rescale coordinates to be within given bounds
+  l <- norm_coords(l, ymin=-1, ymax=1, xmin=-1, xmax=1)
+  
+  # create graph
+  plot(x = g, # graph to plot
+# vertex.label = "", # remove vertex labels
+       vertex.label = vertex_labels$vertex_label,
+#previous adjustment of vertex label size
+       vertex.label.cex = page_rank(g)$vector*100,
+# set the size of vertex proportional to PageRank
+       vertex.size = page_rank(g)$vector*500,
+# set vertex colors for Republicans (party_code = 200) and Democrats (party_code = 100)
+       vertex.color = ifelse(vertex_attr(g)$party_code == 100, 
+                             "#0AC6FF", "#F21B3F"), 
+       # vertex.label.font = 2, # bold vertex labels 
+       vertex.frame.width = 4, # made the black frame around vertexes thicker
+       edge.arrow.size = .5, # adjust edge arrow size
+       edge.width = .6, # adjust edge with
+       edge.arrow.width = 0.5, # adjust edge arrow width
+       layout = l, # set layout to layout created above
+       asp = 0, # set aspect ratio to 0
+       rescale = FALSE) # do not rescale
+  
+  # stop editing and output finished jpeg
+  dev.off() 
+}
+```
+
+\newpage
+\blandscape
+
+![Speech Network of the 97$^{\text{th}}$ Congress]("/Users/charlescostanzo/College/Au 2023/Politsc 4998/URS Application/network plots/97_congress.jpeg")
+
+\newpage
+
+![Speech Network of the 98$^{\text{th}}$ Congress]("/Users/charlescostanzo/College/Au 2023/Politsc 4998/URS Application/network plots/98_congress.jpeg")
+
+\newpage
+
+![Speech Network of the 99$^{\text{th}}$ Congress]("/Users/charlescostanzo/College/Au 2023/Politsc 4998/URS Application/network plots/99_congress.jpeg")
+
+\newpage
+
+![Speech Network of the 100$^{\text{th}}$ Congress]("/Users/charlescostanzo/College/Au 2023/Politsc 4998/URS Application/network plots/100_congress.jpeg")
+
+\newpage
+
+![Speech Network of the 101$^{\text{st}}$ Congress]("/Users/charlescostanzo/College/Au 2023/Politsc 4998/URS Application/network plots/101_congress.jpeg")
+
+\newpage
+
+![Speech Network of the 102$^{\text{nd}}$ Congress]("/Users/charlescostanzo/College/Au 2023/Politsc 4998/URS Application/network plots/102_congress.jpeg")
+
+\newpage
+
+![Speech Network of the 103$^{\text{rd}}$ Congress]("/Users/charlescostanzo/College/Au 2023/Politsc 4998/URS Application/network plots/103_congress.jpeg")
+
+\newpage
+
+![Speech Network of the 104$^{\text{th}}$ Congress]("/Users/charlescostanzo/College/Au 2023/Politsc 4998/URS Application/network plots/104_congress.jpeg")
+
+\newpage
+
+![Speech Network of the 105$^{\text{th}}$ Congress]("/Users/charlescostanzo/College/Au 2023/Politsc 4998/URS Application/network plots/105_congress.jpeg")
+
+\newpage
+
+![Speech Network of the 106$^{\text{th}}$ Congress]("/Users/charlescostanzo/College/Au 2023/Politsc 4998/URS Application/network plots/106_congress.jpeg")
+
+\newpage
+
+![Speech Network of the 107$^{\text{th}}$ Congress]("/Users/charlescostanzo/College/Au 2023/Politsc 4998/URS Application/network plots/107_congress.jpeg")
+
+\newpage
+
+![Speech Network of the 108$^{\text{th}}$ Congress]("/Users/charlescostanzo/College/Au 2023/Politsc 4998/URS Application/network plots/108_congress.jpeg")
+
+\newpage
+
+![Speech Network of the 109$^{\text{th}}$ Congress]("/Users/charlescostanzo/College/Au 2023/Politsc 4998/URS Application/network plots/109_congress.jpeg")
+
+\newpage
+
+![Speech Network of the 110$^{\text{th}}$ Congress]("/Users/charlescostanzo/College/Au 2023/Politsc 4998/URS Application/network plots/110_congress.jpeg")
+
+\newpage
+
+![Speech Network of the 111$^{\text{th}}$ Congress]("/Users/charlescostanzo/College/Au 2023/Politsc 4998/URS Application/network plots/111_congress.jpeg")
+
+\newpage
+
+![Speech Network of the 112$^{\text{th}}$ Congress]("/Users/charlescostanzo/College/Au 2023/Politsc 4998/URS Application/network plots/112_congress.jpeg")
+
+\newpage
+
+![Speech Network of the 113$^{\text{th}}$ Congress]("/Users/charlescostanzo/College/Au 2023/Politsc 4998/URS Application/network plots/113_congress.jpeg")
+
+\newpage
+
+![Speech Network of the 114$^{\text{th}}$ Congress]("/Users/charlescostanzo/College/Au 2023/Politsc 4998/URS Application/network plots/114_congress.jpeg")
+
+\newpage
+
+\elandscape
+
